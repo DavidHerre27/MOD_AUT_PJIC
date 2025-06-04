@@ -1,0 +1,47 @@
+[
+  {
+    "fecha": "2025-05-28 12:21:29",
+    "dependencia": "Adquisiciones",
+    "archivo": "contratos_2025-05-28_12-16.xlsx",
+    "cantidad_contratos": 4,
+    "estado": "OK",
+    "archivo_pdf": "informe_2025-05-28_12-21.pdf",
+    "usuario": "admin_adquisiciones"
+  },
+  {
+    "fecha": "2025-05-29 23:08:07",
+    "dependencia": "Adquisiciones",
+    "archivo": "contratos_2025-05-29_23-06.xlsx",
+    "cantidad_contratos": 1,
+    "estado": "OK",
+    "archivo_pdf": "informe_2025-05-29_23-08.pdf",
+    "usuario": "carlos_herrera82181@elpoli.edu.co"
+  },
+  {
+    "fecha": "2025-05-30 04:16:00",
+    "dependencia": "Adquisiciones",
+    "archivo": "contratos_2025-05-30_04-14.xlsx",
+    "cantidad_contratos": 2,
+    "estado": "OK",
+    "archivo_pdf": "informe_2025-05-30_04-16.pdf",
+    "usuario": "admin_adquisiciones"
+  },
+  {
+    "fecha": "2025-05-30 10:56:17",
+    "dependencia": "Adquisiciones",
+    "archivo": "contratos_2025-05-30_10-44.xlsx",
+    "cantidad_contratos": 4,
+    "estado": "OK",
+    "archivo_pdf": "informe_2025-05-30_10-56.pdf",
+    "usuario": "admin_adquisiciones"
+  },
+  {
+    "fecha": "2025-06-01 16:56:02",
+    "dependencia": "Adquisiciones",
+    "archivo": "contratos_2025-06-01_16-53.xlsx",
+    "cantidad_contratos": 1,
+    "estado": "OK",
+    "archivo_pdf": "informe_2025-06-01_16-56.pdf",
+    "usuario": "carlos_herrera"
+  }
+]

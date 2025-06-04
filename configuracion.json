@@ -1,0 +1,5 @@
+{
+  "url": "http://www.gestiontransparente.com/Rendicion/Inicio.aspx",
+  "script": "core/Asistente_Contratacion.py",
+  "informe": "logs/proceso_contratos.log"
+}
