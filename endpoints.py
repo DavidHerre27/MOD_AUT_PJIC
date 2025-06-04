@@ -7,18 +7,11 @@ from core.Navegacion import navegar_asistente_contratacion
 from core.Asistente_Contratacion import procesar_fila
 from utils.pdf import generar_pdf_informe
 from fastapi.responses import JSONResponse
-import os
 from selenium import webdriver
 from selenium.webdriver.support.ui import WebDriverWait
 from datetime import datetime
-import os
-import json
-import logging
-import shutil
-import pandas as pd
 from fastapi import APIRouter, HTTPException, Depends
 from fastapi.security import OAuth2PasswordRequestForm, OAuth2PasswordBearer
-import sqlite3
 from auth.auth import verificar_clave, crear_token_acceso
 from utils.spreadsheet import cargar_datos_local
 from auth.dependencies import get_current_user
@@ -30,6 +23,12 @@ from utils.credenciales import obtener_credenciales_gt
 from utils.encriptador import desencriptar
 from utils.encriptador import encriptar
 from dotenv import load_dotenv
+from utils.db import database
+import os
+import json
+import logging
+import shutil
+import pandas as pd
 import jwt
 import bcrypt
 
@@ -248,29 +247,32 @@ def descargar_informe(
     return FileResponse(path=ruta, filename=archivo_pdf, media_type='application/pdf')
 
 @router.post("/token")
-def login(form_data: OAuth2PasswordRequestForm = Depends()):
-    conn = sqlite3.connect("usuarios.db")
-    cursor = conn.cursor()
-    cursor.execute("SELECT clave_hash, dependencia, es_superusuario FROM usuarios WHERE usuario = ?", (form_data.username,))
-    resultado = cursor.fetchone()
-    conn.close()
+async def login(form_data: OAuth2PasswordRequestForm = Depends()):
+    query = """
+        SELECT clave_hash, dependencia, es_superusuario 
+        FROM usuarios 
+        WHERE usuario = :usuario
+    """
+    values = {"usuario": form_data.username}
+    resultado = await database.fetch_one(query=query, values=values)
 
     if not resultado:
         raise HTTPException(status_code=400, detail="Usuario no encontrado")
-    
-    clave_hash, dependencia, es_superusuario = resultado
+
+    clave_hash = resultado["clave_hash"]
+    dependencia = resultado["dependencia"]
+    es_superusuario = resultado["es_superusuario"]
 
     if not verificar_clave(form_data.password, clave_hash):
         raise HTTPException(status_code=400, detail="Contraseña incorrecta")
-    
-    # 🔐 Incluir los 3 datos importantes en el token
+
+    # 🔐 Generar token JWT con info
     token = crear_token_acceso({
         "sub": form_data.username,
         "dependencia": dependencia,
         "es_superusuario": bool(es_superusuario)
     })
 
-    # Enviar también los datos por separado para el frontend
     return {
         "access_token": token,
         "token_type": "bearer",
@@ -306,92 +308,102 @@ class UsuarioNuevo(BaseModel):
     dependencia: str
 
 @router.post("/crear_usuario")
-def crear_usuario(data: UsuarioNuevo, token: str = Depends(oauth2_scheme)):
+async def crear_usuario(data: UsuarioNuevo, token: str = Depends(oauth2_scheme)):
     usuario_actual = get_current_user(token)
 
-    conn = sqlite3.connect("usuarios.db")
-    cursor = conn.cursor()
-
-    # Obtener datos del usuario actual para verificar si es superusuario
-    cursor.execute("SELECT es_superusuario FROM usuarios WHERE usuario = ?", (usuario_actual,))
-    resultado = cursor.fetchone()
-    if not resultado or resultado[0] != 1:
-        conn.close()
+    # Verificar si el usuario actual es superusuario
+    query_super = "SELECT es_superusuario FROM usuarios WHERE usuario = :usuario"
+    resultado = await database.fetch_one(query=query_super, values={"usuario": usuario_actual})
+    
+    if not resultado or resultado["es_superusuario"] != 1:
         raise HTTPException(status_code=403, detail="❌ Acceso denegado: solo superusuarios")
 
-    # Validar si el nuevo usuario ya existe
-    cursor.execute("SELECT * FROM usuarios WHERE usuario = ?", (data.usuario,))
-    if cursor.fetchone():
-        conn.close()
+    # Verificar si el nuevo usuario ya existe
+    query_existente = "SELECT 1 FROM usuarios WHERE usuario = :usuario"
+    existente = await database.fetch_one(query=query_existente, values={"usuario": data.usuario})
+
+    if existente:
         raise HTTPException(status_code=400, detail="El usuario ya existe")
 
     # Hashear la contraseña
     hashed = bcrypt.hashpw(data.clave.encode("utf-8"), bcrypt.gensalt())
 
     # Insertar nuevo usuario
-    cursor.execute(
-        "INSERT INTO usuarios (usuario, clave_hash, dependencia, es_superusuario) VALUES (?, ?, ?, 0)",
-        (data.usuario, hashed, data.dependencia)
-    )
-    conn.commit()
-    conn.close()
+    query_insert = """
+        INSERT INTO usuarios (usuario, clave_hash, dependencia, es_superusuario)
+        VALUES (:usuario, :clave_hash, :dependencia, 0)
+    """
+    await database.execute(query=query_insert, values={
+        "usuario": data.usuario,
+        "clave_hash": hashed,
+        "dependencia": data.dependencia
+    })
+
     return {"mensaje": "✅ Usuario creado correctamente"}
 
-def obtener_credenciales_gt(usuario_sistema):
-    conn = sqlite3.connect("usuarios.db")
-    cursor = conn.cursor()
-    cursor.execute("""
+@router.post("/actualizar_credenciales_gt")
+async def obtener_credenciales_gt(usuario_sistema: str):
+    query = """
         SELECT gt_usuario, gt_clave_encriptada
         FROM credenciales_gt
-        WHERE usuario_sistema = ?
-    """, (usuario_sistema,))
-    fila = cursor.fetchone()
-    conn.close()
+        WHERE usuario_sistema = :usuario_sistema
+    """
+    fila = await database.fetch_one(query=query, values={"usuario_sistema": usuario_sistema})
 
     if fila:
-        return fila
+        return fila["gt_usuario"], fila["gt_clave_encriptada"]
 
     return None, None
 
 @router.post("/actualizar_credenciales_gt")
-def actualizar_credenciales_gt(usuario_sistema: str = Query(...), gt_usuario: str = Query(...), gt_clave_encriptada: str = Query(...)):
-    from utils.encriptador import encriptar
-    conn = sqlite3.connect("usuarios.db")
-    cursor = conn.cursor()
-
+async def actualizar_credenciales_gt(
+    usuario_sistema: str = Query(...),
+    gt_usuario: str = Query(...),
+    gt_clave_encriptada: str = Query(...)
+):
     clave_gt_encriptada = encriptar(gt_clave_encriptada)
 
-    cursor.execute("""
+    query = """
         INSERT INTO credenciales_gt (usuario_sistema, gt_usuario, gt_clave_encriptada)
-        VALUES (?, ?, ?)
-        ON CONFLICT(usuario_sistema) DO UPDATE SET
-        gt_usuario = excluded.gt_usuario,
-        gt_clave_encriptada = excluded.gt_clave_encriptada
-    """, (usuario_sistema, gt_usuario, clave_gt_encriptada))
+        VALUES (:usuario_sistema, :gt_usuario, :gt_clave_encriptada)
+        ON CONFLICT (usuario_sistema) DO UPDATE SET
+            gt_usuario = EXCLUDED.gt_usuario,
+            gt_clave_encriptada = EXCLUDED.gt_clave_encriptada
+    """
+    values = {
+        "usuario_sistema": usuario_sistema,
+        "gt_usuario": gt_usuario,
+        "gt_clave_encriptada": clave_gt_encriptada
+    }
 
-    conn.commit()
-    conn.close()
+    await database.execute(query=query, values=values)
 
-    return {"mensaje": "Credenciales actualizadas correctamente"}
+    return {"mensaje": "✅ Credenciales actualizadas correctamente"}
 
 @router.post("/guardar_credenciales")
-def guardar_credenciales(data: dict):
+async def guardar_credenciales(data: dict):
     usuario_sistema = data["usuario_sistema"]
     gt_usuario = data["gt_usuario"]
-    clave_gt = data["gt_clave"] # Clave en texto plano
+    clave_gt = data["gt_clave"]  # Texto plano
 
     clave_encriptada = encriptar(clave_gt)
 
-    conn = sqlite3.connect("usuarios.db")
-    cursor = conn.cursor()
-    cursor.execute("""
-        INSERT OR REPLACE INTO credenciales_gt (usuario_sistema, gt_usuario, gt_clave_encriptada)
-        VALUES (?, ?, ?)
-    """, (usuario_sistema, gt_usuario, clave_encriptada))
-    conn.commit()
-    conn.close()
+    query = """
+        INSERT INTO credenciales_gt (usuario_sistema, gt_usuario, gt_clave_encriptada)
+        VALUES (:usuario_sistema, :gt_usuario, :gt_clave_encriptada)
+        ON CONFLICT (usuario_sistema) DO UPDATE SET
+            gt_usuario = EXCLUDED.gt_usuario,
+            gt_clave_encriptada = EXCLUDED.gt_clave_encriptada
+    """
+    values = {
+        "usuario_sistema": usuario_sistema,
+        "gt_usuario": gt_usuario,
+        "gt_clave_encriptada": clave_encriptada
+    }
 
-    return {"mensaje": "Credenciales actualizadas"}
+    await database.execute(query=query, values=values)
+
+    return {"mensaje": "✅ Credenciales actualizadas"}
 
 @router.get("/errores")
 def obtener_errores_criticos():

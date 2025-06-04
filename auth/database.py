@@ -1,22 +1,23 @@
-import sqlite3
+# auth/database.py
+from databases import Database
 import os
 
-DATABASE = "usuarios.db"
-print(f"📍 [DEBUG] Cargando usuarios.db desde: {os.path.abspath('usuarios.db')}")
+# Usa la variable de entorno DATABASE_URL definida en Render
+DATABASE_URL = os.getenv("DATABASE_URL")
+database = Database(DATABASE_URL)
 
-def get_connection():
-    return sqlite3.connect(os.path.join(os.path.dirname(__file__), "..", "usuarios.db"))
-
-def get_usuario_por_nombre(nombre: str):
-    conn = get_connection()
-    cursor = conn.cursor()
-    cursor.execute("SELECT usuario, clave_hash, dependencia FROM usuarios WHERE usuario = ?", (nombre,))
-    fila = cursor.fetchone()
-    conn.close()
+async def get_usuario_por_nombre(nombre: str):
+    query = """
+        SELECT usuario, clave_hash, dependencia
+        FROM usuarios
+        WHERE usuario = :nombre
+    """
+    fila = await database.fetch_one(query=query, values={"nombre": nombre})
+    
     if fila:
         return {
-            "usuario": fila[0],
-            "clave_hash": fila[1],
-            "dependencia": fila[2]
+            "usuario": fila["usuario"],
+            "clave_hash": fila["clave_hash"],
+            "dependencia": fila["dependencia"]
         }
     return None

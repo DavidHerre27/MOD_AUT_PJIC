@@ -1,4 +1,4 @@
-import sqlite3
+import database
 from fastapi import APIRouter, HTTPException
 from fastapi import Depends
 from fastapi.security import OAuth2PasswordRequestForm
@@ -15,20 +15,23 @@ class LoginResponse(BaseModel):
     dependencia: str
 
 @router.post("/login", response_model=LoginResponse)
-def login(form_data: OAuth2PasswordRequestForm = Depends()):
+async def login(form_data: OAuth2PasswordRequestForm = Depends()):
     usuario = form_data.username
     clave = form_data.password
 
-    conn = sqlite3.connect("usuarios.db")
-    cursor = conn.cursor()
-    cursor.execute("SELECT clave_hash, dependencia FROM usuarios WHERE usuario = ?", (usuario,))
-    fila = cursor.fetchone()
-    conn.close()
+    query = """
+        SELECT clave_hash, dependencia 
+        FROM usuarios 
+        WHERE usuario = :usuario
+    """
+    result = await database.fetch_one(query=query, values={"usuario": usuario})
 
-    if not fila:
+    if not result:
         raise HTTPException(status_code=400, detail="Usuario no encontrado")
 
-    clave_hash, dependencia = fila
+    clave_hash = result["clave_hash"]
+    dependencia = result["dependencia"]
+
     if not verificar_clave(clave, clave_hash):
         raise HTTPException(status_code=401, detail="Contraseña incorrecta")
 
@@ -45,23 +48,31 @@ class Credenciales(BaseModel):
     clave: str
 
 @router.post("/guardar_credenciales")
-def guardar_credenciales(datos: Credenciales):
+async def guardar_credenciales(datos: Credenciales):
     try:
-        conn = sqlite3.connect("usuarios.db")
-        cursor = conn.cursor()
+        # Verificar si el usuario existe
+        query_verificar = "SELECT id FROM usuarios WHERE usuario = :usuario"
+        existe = await database.fetch_one(query=query_verificar, values={"usuario": datos.usuario})
 
+        if not existe:
+            raise HTTPException(status_code=404, detail="Usuario no encontrado")
+
+        # Hashear la nueva clave
         clave_hash = hashear_clave(datos.clave)
 
-        # Asegúrate de que el usuario exista antes de actualizar
-        cursor.execute("SELECT id FROM usuarios WHERE usuario = ?", (datos.usuario,))
-        if cursor.fetchone() is None:
-            return {"error": "Usuario no encontrado"}, 404
+        # Actualizar la clave
+        query_actualizar = """
+            UPDATE usuarios
+            SET clave_hash = :clave_hash
+            WHERE usuario = :usuario
+        """
+        await database.execute(query=query_actualizar, values={
+            "clave_hash": clave_hash,
+            "usuario": datos.usuario
+        })
 
-        cursor.execute("UPDATE usuarios SET clave_hash = ? WHERE usuario = ?", (clave_hash, datos.usuario))
-        conn.commit()
-        return {"mensaje": "Credenciales actualizadas correctamente"}
+        return {"mensaje": "✅ Credenciales actualizadas correctamente"}
+    
     except Exception as e:
         print("❌ Error:", e)
-        return {"error": str(e)}, 500
-    finally:
-        conn.close()
+        raise HTTPException(status_code=500, detail="Error interno al actualizar credenciales")
