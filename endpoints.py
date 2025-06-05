@@ -20,10 +20,9 @@ from fastapi import HTTPException, Query
 from pydantic import BaseModel
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from utils.credenciales import obtener_credenciales_gt
-from utils.encriptador import desencriptar
-from utils.encriptador import encriptar
+from utils.encriptador import encriptar, desencriptar
 from dotenv import load_dotenv
-from utils.db import database
+from auth import database
 import os
 import json
 import logging
@@ -341,19 +340,6 @@ async def crear_usuario(data: UsuarioNuevo, token: str = Depends(oauth2_scheme))
 
     return {"mensaje": "✅ Usuario creado correctamente"}
 
-@router.post("/actualizar_credenciales_gt")
-async def obtener_credenciales_gt(usuario_sistema: str):
-    query = """
-        SELECT gt_usuario, gt_clave_encriptada
-        FROM credenciales_gt
-        WHERE usuario_sistema = :usuario_sistema
-    """
-    fila = await database.fetch_one(query=query, values={"usuario_sistema": usuario_sistema})
-
-    if fila:
-        return fila["gt_usuario"], fila["gt_clave_encriptada"]
-
-    return None, None
 
 @router.post("/actualizar_credenciales_gt")
 async def actualizar_credenciales_gt(
