@@ -24,5 +24,4 @@ email-validator
 jinja2
 reportlab
 fpdf
-smtplib
 webdriver-manager
