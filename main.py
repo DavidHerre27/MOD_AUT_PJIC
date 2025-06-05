@@ -19,9 +19,10 @@ async def shutdown():
 # ✅ Permitir acceso desde el frontend React
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "https://mod-aut-pjic.onrender.com"
-    ],
+allow_origins=[
+    "https://mod-aut-pjic.onrender.com",
+    "https://mod-aut-pjic-frontend.vercel.app"
+],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
