@@ -27,6 +27,11 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Ruta base de prueba
+@app.get("/")
+def leer_root():
+    return {"mensaje": "🚀 Backend activo y funcionando"}
+
 # ✅ Conectar rutas de endpoints y autenticación
 app.include_router(endpoints_router)
 app.include_router(auth_router)
