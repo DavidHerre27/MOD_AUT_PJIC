@@ -16,5 +16,13 @@ asyncpg==0.27.0
 fastapi
 pandas
 python-dotenv
-python-multipart
 sqlalchemy
+requests
+aiofiles
+python-jose
+email-validator
+jinja2
+reportlab
+fpdf
+smtplib
+webdriver-manager
