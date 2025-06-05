@@ -20,8 +20,7 @@ async def shutdown():
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
-        "http://localhost:5173",
-        "http://192.168.1.8:5173"
+        "https://mod-aut-pjic.onrender.com"
     ],
     allow_credentials=True,
     allow_methods=["*"],
