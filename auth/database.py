@@ -1,4 +1,3 @@
-# auth/database.py
 from databases import Database
 import os
 
@@ -13,11 +12,12 @@ async def get_usuario_por_nombre(nombre: str):
         WHERE usuario = :nombre
     """
     fila = await database.fetch_one(query=query, values={"nombre": nombre})
-    
+
     if fila:
         return {
             "usuario": fila["usuario"],
             "clave_hash": fila["clave_hash"],
             "dependencia": fila["dependencia"]
         }
+
     return None

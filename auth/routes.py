@@ -1,4 +1,4 @@
-import database
+from auth.database import database
 from fastapi import APIRouter, HTTPException
 from fastapi import Depends
 from fastapi.security import OAuth2PasswordRequestForm
