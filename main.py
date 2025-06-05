@@ -1,5 +1,6 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from endpoints import router as endpoints_router
 from auth.routes import router as auth_router
 from auth.database import database  # ⬅️ Importa el objeto de conexión
@@ -27,9 +28,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Ruta base de prueba
-@app.get("/")
-def leer_root():
+@app.api_route("/", methods=["GET", "HEAD"])
+async def leer_root(request: Request):
+    if request.method == "HEAD":
+        return JSONResponse(content=None, status_code=200)
     return {"mensaje": "🚀 Backend activo y funcionando"}
 
 # ✅ Conectar rutas de endpoints y autenticación
